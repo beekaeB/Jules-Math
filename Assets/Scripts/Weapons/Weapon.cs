@@ -23,6 +23,7 @@ public class Weapon
     public float baseDamage = 10f;
     public float baseFireRate = 5f;
     public int baseMagazineSize = 20;
+    public float baseReloadTime = 2f;
 
     #region Calculated Stats
     // These properties calculate the final stats on the fly by summing the base stat
@@ -30,6 +31,7 @@ public class Weapon
     public float Damage => baseDamage + parts.Sum(p => p.damageModifier);
     public float FireRate => baseFireRate + parts.Sum(p => p.fireRateModifier);
     public int MagazineSize => baseMagazineSize + parts.Sum(p => p.magazineSizeModifier);
+    public float ReloadTime => Mathf.Max(0.1f, baseReloadTime - parts.Sum(p => p.reloadTimeModifier)); // Reload time gets shorter with modifiers
     #endregion
 
     public Weapon()

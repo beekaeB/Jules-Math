@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections;
 
 public class PlayerController : MonoBehaviour
 {
@@ -8,6 +9,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Firing")]
     public GameObject projectilePrefab;
+    public GameObject thrownWeaponPrefab; // For Tediore reloads
     private float nextFire = 0f;
 
     [Header("Player State")]
@@ -17,56 +19,52 @@ public class PlayerController : MonoBehaviour
 
     private bool isCaptured = false;
     private Transform captor = null;
+    private int currentMagazine;
+    private bool isReloading = false;
 
     void Start()
     {
-        // Calculate screen boundaries for player movement
         float camDistance = Vector3.Distance(transform.position, Camera.main.transform.position);
         Vector2 bottomCorner = Camera.main.ViewportToWorldPoint(new Vector3(0, 0, camDistance));
         Vector2 topCorner = Camera.main.ViewportToWorldPoint(new Vector3(1, 1, camDistance));
         xMin = bottomCorner.x;
         xMax = topCorner.x;
 
-        // Create and equip a default 'starter' weapon if none is assigned.
         if (equippedWeapon == null)
         {
-            EquipWeapon(new Weapon() { weaponName = "Default Blaster" });
+            EquipWeapon(new Weapon() { weaponName = "Default Blaster", baseMagazineSize = 20, baseReloadTime = 2f });
         }
     }
 
     void Update()
     {
-        if (isCaptured)
+        if (isCaptured || isReloading)
         {
-            // If captured, follow the captor
-            if (captor != null)
+            if (isCaptured && captor != null)
             {
-                transform.position = captor.position + Vector3.down; // Follow slightly below the captor
+                transform.position = captor.position + Vector3.down;
             }
-            return; // No input while captured
+            return;
         }
 
         HandleMovement();
         HandleFiring();
+        HandleReloading();
     }
 
     void HandleMovement()
     {
         float horizontalInput = Input.GetAxis("Horizontal");
         transform.Translate(Vector3.right * horizontalInput * speed * Time.deltaTime);
-
-        // Clamp position to keep the player within the screen bounds
         float newX = Mathf.Clamp(transform.position.x, xMin, xMax);
         transform.position = new Vector3(newX, transform.position.y, transform.position.z);
     }
 
     void HandleFiring()
     {
-        // Can't fire if there's no weapon or projectile prefab.
         if (equippedWeapon == null || projectilePrefab == null) return;
+        if (currentMagazine <= 0) return;
 
-        // Fire rate is measured in shots per second. We calculate the delay between shots.
-        // We also check that FireRate is not zero to avoid a division by zero error.
         float fireDelay = (equippedWeapon.FireRate > 0) ? 1f / equippedWeapon.FireRate : float.MaxValue;
 
         if (Input.GetButton("Fire1") && Time.time > nextFire)
@@ -76,40 +74,76 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    void HandleReloading()
+    {
+        if (Input.GetKeyDown(KeyCode.R) && currentMagazine < equippedWeapon.MagazineSize)
+        {
+            if (equippedWeapon.manufacturer == Manufacturer.Tediore)
+            {
+                TedioreReload();
+            }
+            else
+            {
+                StartCoroutine(ReloadCoroutine());
+            }
+        }
+    }
+
+    IEnumerator ReloadCoroutine()
+    {
+        isReloading = true;
+        Debug.Log("Reloading...");
+        yield return new WaitForSeconds(equippedWeapon.ReloadTime);
+        currentMagazine = equippedWeapon.MagazineSize;
+        isReloading = false;
+        Debug.Log("Reload complete! Ammo: " + currentMagazine);
+    }
+
+    void TedioreReload()
+    {
+        Debug.Log("Tediore reload: Throwing weapon!");
+        if (thrownWeaponPrefab != null)
+        {
+            GameObject thrownGO = Instantiate(thrownWeaponPrefab, transform.position, Quaternion.identity);
+            ThrownWeapon thrownScript = thrownGO.GetComponent<ThrownWeapon>();
+            if (thrownScript != null)
+            {
+                // Pass weapon stats to the thrown grenade-gun
+                thrownScript.Initialize(currentMagazine, equippedWeapon.Damage, equippedWeapon.element);
+            }
+        }
+        // Instantly reload
+        currentMagazine = equippedWeapon.MagazineSize;
+    }
+
     void Fire()
     {
-        // Define spawn positions for projectiles
-        Vector3 leftSpawn = transform.position + new Vector3(-0.25f, 0, 0);
-        Vector3 rightSpawn = transform.position + new Vector3(0.25f, 0, 0);
-
         if (isDualFighter)
         {
-            // Fire from two positions
-            SpawnProjectile(leftSpawn);
-            SpawnProjectile(rightSpawn);
+            SpawnProjectile(transform.position + new Vector3(-0.25f, 0, 0));
+            SpawnProjectile(transform.position + new Vector3(0.25f, 0, 0));
         }
         else
         {
-            // Fire from the center
             SpawnProjectile(transform.position);
         }
     }
 
     void SpawnProjectile(Vector3 position)
     {
-        if (projectilePrefab == null) return;
+        if (projectilePrefab == null || currentMagazine <= 0) return;
+
+        currentMagazine--;
 
         GameObject projectileGO = Instantiate(projectilePrefab, position, Quaternion.identity);
         Projectile projectile = projectileGO.GetComponent<Projectile>();
 
         if (projectile != null)
         {
-            // Pass the weapon's stats to the projectile
             projectile.damage = equippedWeapon.Damage;
             projectile.element = equippedWeapon.element;
             projectile.manufacturer = equippedWeapon.manufacturer;
 
-            // Apply Torgue gimmick
             if (equippedWeapon.manufacturer == Manufacturer.Torgue)
             {
                 projectile.isExplosive = true;
@@ -117,13 +151,12 @@ public class PlayerController : MonoBehaviour
         }
     }
 
-    /// <summary>
-    /// Equips a new weapon, replacing the old one.
-    /// </summary>
     public void EquipWeapon(Weapon newWeapon)
     {
         equippedWeapon = newWeapon;
-        Debug.Log($"Player equipped new weapon: {newWeapon.weaponName}" + System.Environment.NewLine + newWeapon.ToString());
+        currentMagazine = equippedWeapon.MagazineSize;
+        isReloading = false;
+        Debug.Log($"Player equipped new weapon: {newWeapon.weaponName} | Ammo: {currentMagazine}");
     }
 
     public void LoseLife()
@@ -148,19 +181,16 @@ public class PlayerController : MonoBehaviour
     public void OnCapture(Transform captorTransform)
     {
         if (isCaptured) return;
-
-        Debug.Log("Player has been captured!");
         isCaptured = true;
         captor = captorTransform;
-        // In a real game, you might also want to disable the player's collider here.
+        Debug.Log("Player has been captured!");
     }
 
     public void OnRescue()
     {
-        Debug.Log("Player has been rescued! Dual Fighter mode activated!");
         isCaptured = false;
         captor = null;
         isDualFighter = true;
-        // You might want to start a timer to disable dual fighter mode after a while.
+        Debug.Log("Player has been rescued! Dual Fighter mode activated!");
     }
 }

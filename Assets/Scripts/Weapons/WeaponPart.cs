@@ -28,5 +28,6 @@ public class WeaponPart : ScriptableObject
     public float damageModifier = 0f;
     public float fireRateModifier = 0f;
     public int magazineSizeModifier = 0;
-    // More modifiers like accuracy, reload speed, etc., can be added here.
+    public float reloadTimeModifier = 0f; // Positive values make reload faster
+    // More modifiers like accuracy, etc., can be added here.
 }
