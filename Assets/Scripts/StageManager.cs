@@ -67,7 +67,15 @@ public class StageManager : MonoBehaviour
             // Wait until the wave is cleared
             yield return new WaitUntil(() => enemiesAlive == 0);
 
-            Debug.Log($"Wave {waveCount} cleared! Preparing for next wave.");
+            Debug.Log($"Wave {waveCount} cleared! Entering Cognitive Forge.");
+
+            // Call the UIManager to run the forge sequence and wait for it to complete.
+            if (UIManager.Instance != null)
+            {
+                yield return StartCoroutine(UIManager.Instance.CognitiveForgeSequence());
+            }
+
+            Debug.Log("Preparing for next wave.");
             yield return new WaitForSeconds(timeBetweenWaves);
         }
     }
