@@ -13,6 +13,10 @@ public class PlayerController : MonoBehaviour
     [Header("Player State")]
     public int lives = 3;
     public Weapon equippedWeapon;
+    public bool isDualFighter = false;
+
+    private bool isCaptured = false;
+    private Transform captor = null;
 
     void Start()
     {
@@ -32,6 +36,16 @@ public class PlayerController : MonoBehaviour
 
     void Update()
     {
+        if (isCaptured)
+        {
+            // If captured, follow the captor
+            if (captor != null)
+            {
+                transform.position = captor.position + Vector3.down; // Follow slightly below the captor
+            }
+            return; // No input while captured
+        }
+
         HandleMovement();
         HandleFiring();
     }
@@ -64,14 +78,42 @@ public class PlayerController : MonoBehaviour
 
     void Fire()
     {
-        // Instantiate the projectile
-        GameObject projectileGO = Instantiate(projectilePrefab, transform.position, Quaternion.identity);
+        // Define spawn positions for projectiles
+        Vector3 leftSpawn = transform.position + new Vector3(-0.25f, 0, 0);
+        Vector3 rightSpawn = transform.position + new Vector3(0.25f, 0, 0);
+
+        if (isDualFighter)
+        {
+            // Fire from two positions
+            SpawnProjectile(leftSpawn);
+            SpawnProjectile(rightSpawn);
+        }
+        else
+        {
+            // Fire from the center
+            SpawnProjectile(transform.position);
+        }
+    }
+
+    void SpawnProjectile(Vector3 position)
+    {
+        if (projectilePrefab == null) return;
+
+        GameObject projectileGO = Instantiate(projectilePrefab, position, Quaternion.identity);
         Projectile projectile = projectileGO.GetComponent<Projectile>();
 
-        // Pass the weapon's damage to the projectile
         if (projectile != null)
         {
-            projectile.damage = (int)equippedWeapon.Damage; // Casting float to int for the projectile
+            // Pass the weapon's stats to the projectile
+            projectile.damage = equippedWeapon.Damage;
+            projectile.element = equippedWeapon.element;
+            projectile.manufacturer = equippedWeapon.manufacturer;
+
+            // Apply Torgue gimmick
+            if (equippedWeapon.manufacturer == Manufacturer.Torgue)
+            {
+                projectile.isExplosive = true;
+            }
         }
     }
 
@@ -101,5 +143,24 @@ public class PlayerController : MonoBehaviour
             GameManager.Instance.GameOver();
         }
         gameObject.SetActive(false);
+    }
+
+    public void OnCapture(Transform captorTransform)
+    {
+        if (isCaptured) return;
+
+        Debug.Log("Player has been captured!");
+        isCaptured = true;
+        captor = captorTransform;
+        // In a real game, you might also want to disable the player's collider here.
+    }
+
+    public void OnRescue()
+    {
+        Debug.Log("Player has been rescued! Dual Fighter mode activated!");
+        isCaptured = false;
+        captor = null;
+        isDualFighter = true;
+        // You might want to start a timer to disable dual fighter mode after a while.
     }
 }

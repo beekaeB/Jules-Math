@@ -8,6 +8,7 @@ public class EnemyAI : MonoBehaviour
     public EnemyState currentState;
 
     [Header("Stats")]
+    public HealthType healthType = HealthType.Flesh;
     public int health = 1;
     public int points = 10;
 
@@ -31,7 +32,7 @@ public class EnemyAI : MonoBehaviour
     private int waypointIndex = 0;
     private float bottomBound = -7f; // Off-screen boundary
 
-    void Start()
+    protected virtual void Start()
     {
         // This is a failsafe. The path should be assigned by the StageManager upon spawning.
         if (pathAsset != null)
@@ -45,7 +46,7 @@ public class EnemyAI : MonoBehaviour
         }
     }
 
-    void Update()
+    protected virtual void Update()
     {
         // Only perform the dive behavior when in the DIVING state.
         if (currentState == EnemyState.DIVING)
@@ -104,25 +105,81 @@ public class EnemyAI : MonoBehaviour
         StartCoroutine(WaitInFormationCoroutine());
     }
 
-    IEnumerator WaitInFormationCoroutine()
+    protected virtual IEnumerator WaitInFormationCoroutine()
     {
         // Wait for a slightly randomized amount of time before diving
         yield return new WaitForSeconds(Random.Range(timeInFormation * 0.8f, timeInFormation * 1.2f));
         currentState = EnemyState.DIVING;
     }
 
-    public void TakeDamage(int damage)
+    public void TakeDamage(float damage, Element damageElement, Manufacturer manufacturer)
     {
         if (currentState == EnemyState.DEAD) return;
 
-        health -= damage;
+        // --- Elemental Damage Calculation ---
+        float multiplier = 1.0f; // Default multiplier
+        switch (healthType)
+        {
+            case HealthType.Flesh:
+                if (damageElement == Element.Incendiary) multiplier = 2.0f;
+                else if (damageElement == Element.Shock) multiplier = 0.5f;
+                break;
+            case HealthType.Shield:
+                if (damageElement == Element.Shock) multiplier = 2.0f;
+                else if (damageElement == Element.Corrosive) multiplier = 0.5f;
+                break;
+            case HealthType.Armor:
+                if (damageElement == Element.Corrosive) multiplier = 2.0f;
+                else if (damageElement == Element.Incendiary) multiplier = 0.5f;
+                break;
+        }
+
+        int finalDamage = Mathf.CeilToInt(damage * multiplier);
+        health -= finalDamage;
+
+        Debug.Log($"Enemy took {finalDamage} ({damageElement}) damage from a {manufacturer} weapon. Health: {health}");
+
         if (health <= 0)
         {
+            // Handle Jakobs Gimmick: Ricochet on kill
+            if (manufacturer == Manufacturer.Jakobs)
+            {
+                Ricochet(damage, damageElement, manufacturer);
+            }
             Die();
         }
     }
 
-    private void Die()
+    private void Ricochet(float originalDamage, Element originalElement, Manufacturer originalManufacturer)
+    {
+        Debug.Log("JAKOBS: Ricochet!");
+        Collider2D[] nearbyEnemies = Physics2D.OverlapCircleAll(transform.position, 5f); // 5f is ricochet range
+
+        EnemyAI closestEnemy = null;
+        float minDistance = float.MaxValue;
+
+        foreach (var col in nearbyEnemies)
+        {
+            EnemyAI enemy = col.GetComponent<EnemyAI>();
+            if (enemy != null && enemy != this && enemy.currentState != EnemyState.DEAD)
+            {
+                float distance = Vector2.Distance(transform.position, enemy.transform.position);
+                if (distance < minDistance)
+                {
+                    minDistance = distance;
+                    closestEnemy = enemy;
+                }
+            }
+        }
+
+        if (closestEnemy != null)
+        {
+            // Ricochet deals half damage
+            closestEnemy.TakeDamage(originalDamage * 0.5f, originalElement, originalManufacturer);
+        }
+    }
+
+    protected virtual void Die()
     {
         if (currentState == EnemyState.DEAD) return;
         currentState = EnemyState.DEAD;
