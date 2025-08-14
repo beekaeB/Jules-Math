@@ -6,7 +6,7 @@ public class Projectile : MonoBehaviour
 {
     [Header("Configuration")]
     public float speed = 20f;
-    public int damage = 1;
+    public float damage = 1f; // Damage is now a float to match the Weapon's stats
 
     private float topBound = 12f; // A simple boundary for when the projectile is considered off-screen
 
@@ -43,8 +43,9 @@ public class Projectile : MonoBehaviour
         EnemyAI enemy = other.GetComponent<EnemyAI>();
         if (enemy != null)
         {
-            // If it's an enemy, deal damage to it
-            enemy.TakeDamage(damage);
+            // If it's an enemy, deal damage to it.
+            // We cast the float damage to an int because the enemy's health is an integer.
+            enemy.TakeDamage((int)damage);
 
             // Destroy the projectile immediately after hitting an enemy
             Destroy(gameObject);

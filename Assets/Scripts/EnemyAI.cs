@@ -18,6 +18,13 @@ public class EnemyAI : MonoBehaviour
     [Tooltip("The base time the enemy will wait in formation before diving.")]
     public float timeInFormation = 2.5f;
 
+    [Header("Loot")]
+    [Tooltip("The prefab for the weapon pickup object.")]
+    public GameObject weaponPickupPrefab;
+    [Tooltip("The probability (0 to 1) that this enemy will drop loot upon death.")]
+    [Range(0f, 1f)]
+    public float lootDropChance = 0.1f;
+
     // Event that is broadcast when this enemy is destroyed.
     public static event System.Action<EnemyAI> OnEnemyDestroyed;
 
@@ -128,9 +135,31 @@ public class EnemyAI : MonoBehaviour
         // Notify any listeners (like the StageManager) that this enemy is gone.
         OnEnemyDestroyed?.Invoke(this);
 
-        // Placeholder for explosion effects, loot drops, etc.
+        // Handle loot drop
+        TryDropLoot();
 
         Destroy(gameObject);
+    }
+
+    private void TryDropLoot()
+    {
+        if (Random.value <= lootDropChance)
+        {
+            if (LootManager.Instance != null && weaponPickupPrefab != null)
+            {
+                Weapon generatedWeapon = LootManager.Instance.GenerateWeapon();
+                GameObject pickup = Instantiate(weaponPickupPrefab, transform.position, Quaternion.identity);
+                WeaponPickup pickupScript = pickup.GetComponent<WeaponPickup>();
+                if (pickupScript != null)
+                {
+                    pickupScript.Initialize(generatedWeapon);
+                }
+            }
+            else if (weaponPickupPrefab == null)
+            {
+                Debug.LogWarning("Enemy has no weaponPickupPrefab assigned.", this);
+            }
+        }
     }
 
     void OnDestroy()
