@@ -27,7 +27,7 @@ public class MathChallengeManager : MonoBehaviour
     /// <param name="tier">The difficulty tier (1-8). Higher is harder.</param>
     public MathProblem GenerateMathProblem(int tier)
     {
-        int a, b;
+        int a, b, c, ans;
         switch (tier)
         {
             case 1: // Simple Addition
@@ -42,9 +42,35 @@ public class MathChallengeManager : MonoBehaviour
                 a = Random.Range(2, 10);
                 b = Random.Range(2, 10);
                 return new MathProblem($"{a} * {b} = ?", a * b);
-            // Higher tiers can be added here, e.g., division, multiple operations, etc.
+            case 4: // Complex Multiplication
+                a = Random.Range(11, 20);
+                b = Random.Range(11, 20);
+                return new MathProblem($"{a} * {b} = ?", a * b);
+            case 5: // Simple Division (no remainder)
+                b = Random.Range(2, 10);
+                ans = Random.Range(2, 10);
+                a = b * ans;
+                return new MathProblem($"{a} / {b} = ?", ans);
+            case 6: // Two-step problem (mult then add)
+                a = Random.Range(2, 8);
+                b = Random.Range(2, 8);
+                c = Random.Range(2, 8);
+                return new MathProblem($"({a} * {b}) + {c} = ?", (a * b) + c);
+            case 7: // Simple Algebra (solve for x)
+                a = Random.Range(2, 5);
+                b = Random.Range(1, 5);
+                c = Random.Range(1, 5);
+                ans = a * b + c;
+                return new MathProblem($"{a}x + {c} = {ans}", b);
+            case 8: // More complex two-step problem
+                a = Random.Range(5, 12);
+                b = Random.Range(2, 6);
+                c = Random.Range(10, 20);
+                return new MathProblem($"({a} * {b}) - {c} = ?", (a * b) - c);
             default:
-                // Default to tier 1 for any unspecified tiers
+                // If tier is > 8, default to the hardest problem type.
+                if (tier > 8) return GenerateMathProblem(8);
+                // Otherwise default to the easiest.
                 return GenerateMathProblem(1);
         }
     }

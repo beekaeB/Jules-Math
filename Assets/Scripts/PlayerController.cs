@@ -1,5 +1,7 @@
 using UnityEngine;
 using System.Collections;
+using System.Collections.Generic;
+using System.Linq;
 
 public class PlayerController : MonoBehaviour
 {
@@ -14,13 +16,24 @@ public class PlayerController : MonoBehaviour
 
     [Header("Player State")]
     public int lives = 3;
-    public Weapon equippedWeapon;
+    public List<Weapon> weapons = new List<Weapon>();
+    public int inventorySize = 3;
     public bool isDualFighter = false;
 
+    // Read-only property to get the currently equipped weapon
+    public Weapon equippedWeapon => weapons.Any() ? weapons[currentWeaponIndex] : null;
+
+    // --- Private State ---
+    private int currentWeaponIndex = 0;
     private bool isCaptured = false;
     private Transform captor = null;
     private int currentMagazine;
     private bool isReloading = false;
+
+    // Gimmick State
+    private float timeHeld = 0f;
+    private float currentFireRateBonus = 0f;
+    private float currentAccuracyBonus = 0f;
 
     void Start()
     {
@@ -30,9 +43,12 @@ public class PlayerController : MonoBehaviour
         xMin = bottomCorner.x;
         xMax = topCorner.x;
 
-        if (equippedWeapon == null)
+        if (!weapons.Any())
         {
-            EquipWeapon(new Weapon() { weaponName = "Default Blaster", baseMagazineSize = 20, baseReloadTime = 2f });
+            // Add and equip a default 'starter' weapon if inventory is empty.
+            var starterWeapon = new Weapon() { weaponName = "Default Blaster", baseMagazineSize = 20, baseReloadTime = 2f };
+            weapons.Add(starterWeapon);
+            SwitchWeapon(0);
         }
     }
 
@@ -48,10 +64,13 @@ public class PlayerController : MonoBehaviour
         }
 
         HandleMovement();
+        HandleGimmicks();
         HandleFiring();
         HandleReloading();
+        HandleWeaponSwitching();
     }
 
+    #region Handlers
     void HandleMovement()
     {
         float horizontalInput = Input.GetAxis("Horizontal");
@@ -60,12 +79,39 @@ public class PlayerController : MonoBehaviour
         transform.position = new Vector3(newX, transform.position.y, transform.position.z);
     }
 
+    void HandleGimmicks()
+    {
+        if (equippedWeapon == null) return;
+
+        if (Input.GetButton("Fire1"))
+        {
+            timeHeld += Time.deltaTime;
+        }
+        else
+        {
+            timeHeld = 0f;
+            currentFireRateBonus = 0f;
+            currentAccuracyBonus = 0f;
+        }
+
+        if (equippedWeapon.manufacturer == Manufacturer.Vladof)
+        {
+            currentFireRateBonus = timeHeld * equippedWeapon.FireRateRamp;
+        }
+
+        if (equippedWeapon.manufacturer == Manufacturer.Hyperion)
+        {
+            currentAccuracyBonus = timeHeld * equippedWeapon.AccuracyRamp;
+        }
+    }
+
     void HandleFiring()
     {
         if (equippedWeapon == null || projectilePrefab == null) return;
         if (currentMagazine <= 0) return;
 
-        float fireDelay = (equippedWeapon.FireRate > 0) ? 1f / equippedWeapon.FireRate : float.MaxValue;
+        float finalFireRate = equippedWeapon.FireRate + currentFireRateBonus;
+        float fireDelay = (finalFireRate > 0) ? 1f / finalFireRate : float.MaxValue;
 
         if (Input.GetButton("Fire1") && Time.time > nextFire)
         {
@@ -76,6 +122,7 @@ public class PlayerController : MonoBehaviour
 
     void HandleReloading()
     {
+        if (equippedWeapon == null) return;
         if (Input.GetKeyDown(KeyCode.R) && currentMagazine < equippedWeapon.MagazineSize)
         {
             if (equippedWeapon.manufacturer == Manufacturer.Tediore)
@@ -89,6 +136,23 @@ public class PlayerController : MonoBehaviour
         }
     }
 
+    void HandleWeaponSwitching()
+    {
+        // Use Q and E to cycle through weapons
+        if (Input.GetKeyDown(KeyCode.E))
+        {
+            SwitchWeapon((currentWeaponIndex + 1) % weapons.Count);
+        }
+        if (Input.GetKeyDown(KeyCode.Q))
+        {
+            int newIndex = currentWeaponIndex - 1;
+            if (newIndex < 0) newIndex = weapons.Count - 1;
+            SwitchWeapon(newIndex);
+        }
+    }
+    #endregion
+
+    #region Actions
     IEnumerator ReloadCoroutine()
     {
         isReloading = true;
@@ -108,11 +172,9 @@ public class PlayerController : MonoBehaviour
             ThrownWeapon thrownScript = thrownGO.GetComponent<ThrownWeapon>();
             if (thrownScript != null)
             {
-                // Pass weapon stats to the thrown grenade-gun
                 thrownScript.Initialize(currentMagazine, equippedWeapon.Damage, equippedWeapon.element);
             }
         }
-        // Instantly reload
         currentMagazine = equippedWeapon.MagazineSize;
     }
 
@@ -135,7 +197,11 @@ public class PlayerController : MonoBehaviour
 
         currentMagazine--;
 
-        GameObject projectileGO = Instantiate(projectilePrefab, position, Quaternion.identity);
+        float currentSpread = equippedWeapon.baseSpread - currentAccuracyBonus;
+        float spread = Random.Range(-currentSpread, currentSpread) * 0.5f;
+        Quaternion rotation = Quaternion.Euler(0, 0, spread);
+
+        GameObject projectileGO = Instantiate(projectilePrefab, position, rotation);
         Projectile projectile = projectileGO.GetComponent<Projectile>();
 
         if (projectile != null)
@@ -153,10 +219,33 @@ public class PlayerController : MonoBehaviour
 
     public void EquipWeapon(Weapon newWeapon)
     {
-        equippedWeapon = newWeapon;
+        if (weapons.Count < inventorySize)
+        {
+            weapons.Add(newWeapon);
+            SwitchWeapon(weapons.Count - 1);
+        }
+        else
+        {
+            // Replace current weapon if inventory is full
+            weapons[currentWeaponIndex] = newWeapon;
+            SwitchWeapon(currentWeaponIndex);
+        }
+    }
+
+    private void SwitchWeapon(int newIndex)
+    {
+        if (newIndex < 0 || newIndex >= weapons.Count) return;
+
+        currentWeaponIndex = newIndex;
         currentMagazine = equippedWeapon.MagazineSize;
         isReloading = false;
-        Debug.Log($"Player equipped new weapon: {newWeapon.weaponName} | Ammo: {currentMagazine}");
+
+        // Reset gimmick stats on weapon swap
+        timeHeld = 0f;
+        currentFireRateBonus = 0f;
+        currentAccuracyBonus = 0f;
+
+        Debug.Log($"Switched to weapon: {equippedWeapon.weaponName} | Ammo: {currentMagazine}");
     }
 
     public void LoseLife()
@@ -193,4 +282,5 @@ public class PlayerController : MonoBehaviour
         isDualFighter = true;
         Debug.Log("Player has been rescued! Dual Fighter mode activated!");
     }
+    #endregion
 }

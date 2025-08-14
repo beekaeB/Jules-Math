@@ -29,5 +29,10 @@ public class WeaponPart : ScriptableObject
     public float fireRateModifier = 0f;
     public int magazineSizeModifier = 0;
     public float reloadTimeModifier = 0f; // Positive values make reload faster
-    // More modifiers like accuracy, etc., can be added here.
+
+    [Header("Gimmick Modifiers")]
+    [Tooltip("How much this part improves accuracy ramp-up for Hyperion weapons.")]
+    public float accuracyBonusModifier = 0f;
+    [Tooltip("How much this part improves fire rate ramp-up for Vladof weapons.")]
+    public float fireRateRampModifier = 0f;
 }

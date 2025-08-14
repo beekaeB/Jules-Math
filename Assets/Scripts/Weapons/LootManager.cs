@@ -45,26 +45,58 @@ public class LootManager : MonoBehaviour
     {
         Weapon newWeapon = new Weapon();
 
-        // 1. Determine Rarity, Manufacturer, and Element. For now, we'll pick them randomly.
-        // A more advanced system could use weighted probabilities.
+        // 1. Determine Rarity, Manufacturer, and Element.
         newWeapon.manufacturer = (Manufacturer)Random.Range(0, System.Enum.GetValues(typeof(Manufacturer)).Length);
         newWeapon.rarity = (Rarity)Random.Range(0, System.Enum.GetValues(typeof(Rarity)).Length);
         newWeapon.element = (Element)Random.Range(0, System.Enum.GetValues(typeof(Element)).Length);
 
-        // 2. Select one part from each category and add it to the weapon.
-        // We check if the pool is not empty before trying to access it.
-        if (barrels.Any()) newWeapon.parts.Add(barrels[Random.Range(0, barrels.Count)]);
-        if (grips.Any()) newWeapon.parts.Add(grips[Random.Range(0, grips.Count)]);
-        if (magazines.Any()) newWeapon.parts.Add(magazines[Random.Range(0, magazines.Count)]);
-        if (sights.Any()) newWeapon.parts.Add(sights[Random.Range(0, sights.Count)]);
-        if (stocks.Any()) newWeapon.parts.Add(stocks[Random.Range(0, stocks.Count)]);
+        // 2. Determine the number of parts based on rarity.
+        int numParts = 2; // Common
+        switch (newWeapon.rarity)
+        {
+            case Rarity.Uncommon: numParts = 3; break;
+            case Rarity.Rare: numParts = 4; break;
+            case Rarity.Epic: numParts = 5; break;
+            case Rarity.Cipher: numParts = 5; break; // Cipher gets 5 parts and maybe other bonuses later
+        }
 
-        // 3. Generate a procedural name for the weapon.
-        newWeapon.weaponName = $"{newWeapon.manufacturer} Repeater"; // Example name
+        // 3. Create a list of all possible part types and shuffle it.
+        List<PartType> availablePartTypes = System.Enum.GetValues(typeof(PartType)).Cast<PartType>().ToList();
+        availablePartTypes = availablePartTypes.OrderBy(x => Random.value).ToList(); // Simple shuffle
 
-        // 4. Log the details of the generated weapon for debugging.
+        // 4. Add the determined number of random parts to the weapon.
+        for (int i = 0; i < numParts && i < availablePartTypes.Count; i++)
+        {
+            PartType partType = availablePartTypes[i];
+            var pool = GetPartPool(partType);
+            if (pool != null && pool.Any())
+            {
+                newWeapon.parts.Add(pool[Random.Range(0, pool.Count)]);
+            }
+        }
+
+        // 5. Generate a procedural name for the weapon.
+        newWeapon.weaponName = $"{newWeapon.rarity} {newWeapon.manufacturer} Repeater";
+
+        // 6. Log the details of the generated weapon for debugging.
         Debug.Log("--- Weapon Generated ---" + System.Environment.NewLine + newWeapon.ToString());
 
         return newWeapon;
+    }
+
+    /// <summary>
+    /// Helper method to get the correct part pool from a given PartType.
+    /// </summary>
+    private System.Collections.Generic.List<WeaponPart> GetPartPool(PartType partType)
+    {
+        switch (partType)
+        {
+            case PartType.Barrel: return barrels;
+            case PartType.Grip: return grips;
+            case PartType.Magazine: return magazines;
+            case PartType.Sights: return sights;
+            case PartType.Stock: return stocks;
+            default: return null;
+        }
     }
 }

@@ -25,6 +25,15 @@ public class Weapon
     public int baseMagazineSize = 20;
     public float baseReloadTime = 2f;
 
+    [Header("Gimmick Base Stats")]
+    [Tooltip("The starting spread angle of the weapon.")]
+    public float baseSpread = 5f;
+    [Tooltip("How much accuracy increases per second of firing (for Hyperion).")]
+    public float baseAccuracyRamp = 1f;
+    [Tooltip("How much the fire rate increases per second of firing (for Vladof).")]
+    public float baseFireRateRamp = 0.5f;
+
+
     #region Calculated Stats
     // These properties calculate the final stats on the fly by summing the base stat
     // and all modifiers from the attached parts.
@@ -32,6 +41,10 @@ public class Weapon
     public float FireRate => baseFireRate + parts.Sum(p => p.fireRateModifier);
     public int MagazineSize => baseMagazineSize + parts.Sum(p => p.magazineSizeModifier);
     public float ReloadTime => Mathf.Max(0.1f, baseReloadTime - parts.Sum(p => p.reloadTimeModifier)); // Reload time gets shorter with modifiers
+
+    // Gimmick stats
+    public float AccuracyRamp => baseAccuracyRamp + parts.Sum(p => p.accuracyBonusModifier);
+    public float FireRateRamp => baseFireRateRamp + parts.Sum(p => p.fireRateRampModifier);
     #endregion
 
     public Weapon()
